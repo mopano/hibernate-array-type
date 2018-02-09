@@ -1,0 +1,99 @@
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+
+sourceCompatibility = '1.8'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+ext {
+	expectedGradleVersion = '3.2.1'
+	projName = 'hibernate-array-contributor'
+	projDescription = 'A type contributor allowing Hibernate to use various types of array objects inside entities. Used for PostgreSQL.'
+}
+
+group = 'com.mopano'
+version = '1.0'
+
+repositories {
+	mavenLocal()
+    mavenCentral()
+	jcenter()
+}
+
+dependencies {
+	compile group: 'org.hibernate', name: 'hibernate-core', version: '5.2.0.Final'
+	testCompile group: 'junit', name: 'junit', version: '4.10'
+	testRuntime group: 'org.postgresql', name: 'postgresql', version: '9.4.1212.jre7'
+}
+
+jar {
+	manifest = null
+}
+
+task sourcesJar(type: Jar, dependsOn: compileJava) {
+    from sourceSets.main.allSource
+    classifier = 'sources'
+}
+task javadocJar(type: Jar, dependsOn: 'javadoc') {
+    from javadoc.destinationDir
+    classifier = 'javadoc'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifact sourcesJar
+            artifact javadocJar
+
+            // Maven publish plugin adds ALL dependencies with 'runtime' scope
+            // see https://github.com/gradle/gradle/blob/b004f39ece183176bf77c1eebc4aa5cbc20ca5cc/subprojects/maven/src/main/java/org/gradle/api/publish/maven/tasks/GenerateMavenPom.java#L104
+            pom.withXml {
+                Node projNode = asNode()
+                projNode.children().each { projSubnode ->
+                    if (projSubnode.name().getLocalPart().equals('dependencies')) {
+                        projSubnode.children().each { depnode ->
+                            if (depnode.name().getLocalPart().equals('dependency')) {
+                                depnode.children().each { depchild ->
+                                    if (depchild.name().getLocalPart().equals('scope')) {
+                                        depchild.setValue('compile')
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // shamelessly copied from Hibernate build plugin
+                projNode.appendNode('name', projName)
+                projNode.appendNode('description', projDescription)
+                Node licenseNode = projNode.appendNode('licenses').appendNode('license')
+                licenseNode.appendNode('name', 'Modified BSD License')
+                licenseNode.appendNode('url', 'https://opensource.org/licenses/BSD-3-Clause')
+
+                licenseNode.appendNode('distribution', 'repo')
+                projNode.appendNode('url', 'https://github.com/mopano/hibernate-array-type')
+                Node scmNode = projNode.appendNode('scm')
+                scmNode.appendNode('url', 'https://github.com/mopano/hibernate-array-type')
+                scmNode.appendNode('connection', 'scm:git:https://github.com/mopano/hibernate-array-type.git')
+                scmNode.appendNode('developerConnection', 'scm:git:git@github.com:mopano/hibernate-array-type.git')
+
+                Node developersNode = projNode.appendNode('developers')
+                    Node developerNode = developersNode.appendNode('developer')
+                    developerNode.appendNode('id', 'coladict')
+                    developerNode.appendNode('name', 'Yordan Gigov')
+                    developerNode.appendNode('organization', 'Mopano')
+                    developerNode.appendNode('organizationUrl', 'https://mopano.com')
+            }
+        }
+    }
+}
+
+model {
+    tasks.generatePomFileForMavenJavaPublication {
+        destination = file( "$project.buildDir/generated-pom.xml" )
+    }
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = expectedGradleVersion
+}
