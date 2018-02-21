@@ -4,6 +4,9 @@ Array datatype contributor for Hibernate ORM 5.2
 If you need to use PostgreSQL arrays in your JPA entities and already use
 Hibernate as your JPA provider, this is the plugin for you.
 
+One intentional limitation is that you cannot use arrays of primitives.
+This is because `java.sql.Connection.createArrayOf` requires an array of objects.
+While conversion is doable, it's undesirable.
 
 Set-up for testing environment:
 --------
