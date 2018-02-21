@@ -5,6 +5,8 @@
  */
 package com.mopano.hibernate.array;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.hibernate.boot.model.TypeContributions;
 import org.hibernate.boot.model.TypeContributor;
 import org.hibernate.engine.config.spi.ConfigurationService;
@@ -73,7 +75,23 @@ public class ArrayTypeContributor implements TypeContributor {
 	@Override
 	public void contribute( TypeContributions typeContributions, ServiceRegistry serviceRegistry ) {
 
-		Logger log = Logger.getLogger(getClass());
+		Logger log = Logger.getLogger(TypeContributor.class);
+
+		final String hibernateVersion = org.hibernate.Version.getVersionString();
+		Pattern versionParse = Pattern.compile("^(\\d)\\.(\\d)\\.(\\d+)\\b");
+		Matcher versionMatch = versionParse.matcher( hibernateVersion );
+		if ( ! versionMatch.find() ) {
+			log.error( "Unrecognized Hibernate version string: " + hibernateVersion );
+			return;
+		}
+		if ( hibernateVersion.charAt(0) != '5' || hibernateVersion.charAt(2) < '2' ) {
+			log.error( "Array type contributor incompatible with Hibernate version " + hibernateVersion );
+			return;
+		}
+		final int subv = Integer.parseInt( versionMatch.group( 3 ) );
+		if (hibernateVersion.charAt(2) == '2' && subv > 8 && subv < 14) {
+			log.warn( "HHH012292: Hibernate versions from 5.2.9 to 5.2.13 do not allow nulls inside Object arrays." );
+		}
 
 		ConfigurationService config = serviceRegistry.getService(ConfigurationService.class);
 
@@ -85,13 +103,15 @@ public class ArrayTypeContributor implements TypeContributor {
 		final boolean nationalClob = config.getSetting("hibernate.arrays.national.clob", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean nationalMaterializedClob = config.getSetting("hibernate.arrays.national.materialized_clob", StandardConverters.BOOLEAN, Boolean.FALSE);
 
-		log.debug("Creation of array type based on org.hibernate.type.ByteType: " + (replaceByteArrays ? "enabled" : "disabled"));
-		log.debug("Creation of array type based on org.hibernate.type.CharacterType: " + (replaceCharArrays ? "enabled" : "disabled"));
-		log.debug("Creation of array type based on org.hibernate.type.WrapperBinaryType: " + (byteWrapArrays ? "enabled" : "disabled"));
-		log.debug("Creation of array type based on org.hibernate.type.NTextType: " + (nationalText ? "enabled" : "disabled"));
-		log.debug("Creation of array type based on org.hibernate.type.NClobType: " + (nationalClob ? "enabled" : "disabled"));
-		log.debug("Creation of array type based on org.hibernate.type.StringNVarcharType: " + (nationalString ? "enabled" : "disabled"));
-		log.debug("Creation of array type based on org.hibernate.type.MaterializedNClobType: " + (nationalMaterializedClob ? "enabled" : "disabled"));
+		if ( log.isDebugEnabled() ) {
+			log.debug("Creation of array type based on org.hibernate.type.ByteType: " + (replaceByteArrays ? "enabled" : "disabled"));
+			log.debug("Creation of array type based on org.hibernate.type.CharacterType: " + (replaceCharArrays ? "enabled" : "disabled"));
+			log.debug("Creation of array type based on org.hibernate.type.WrapperBinaryType: " + (byteWrapArrays ? "enabled" : "disabled"));
+			log.debug("Creation of array type based on org.hibernate.type.NTextType: " + (nationalText ? "enabled" : "disabled"));
+			log.debug("Creation of array type based on org.hibernate.type.NClobType: " + (nationalClob ? "enabled" : "disabled"));
+			log.debug("Creation of array type based on org.hibernate.type.StringNVarcharType: " + (nationalString ? "enabled" : "disabled"));
+			log.debug("Creation of array type based on org.hibernate.type.MaterializedNClobType: " + (nationalMaterializedClob ? "enabled" : "disabled"));
+		}
 
 		ArrayTypes BOOLEAN = ArrayTypes.get(BooleanType.INSTANCE, serviceRegistry);
 		ArrayTypes NUMERIC_BOOLEAN = ArrayTypes.get(NumericBooleanType.INSTANCE, serviceRegistry);
