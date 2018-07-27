@@ -31,10 +31,7 @@ dependencies {
 }
 
 task testFiveThree(type:Test, dependsOn: compileJava) {
-	classpath = configurations.fivethree + sourceSets.main.output + sourceSets.test.output + configurations.testRuntime
-	for (File f : classpath) {
-		println(f.toString());
-	}
+	classpath = configurations.fivethree + configurations.testRuntime + sourceSets.test.output + sourceSets.main.output
 }
 
 test.dependsOn testFiveThree
