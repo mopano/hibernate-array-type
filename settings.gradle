@@ -1,1 +1,2 @@
 rootProject.name = 'hibernate-array-contributor'
+enableFeaturePreview('STABLE_PUBLISHING')

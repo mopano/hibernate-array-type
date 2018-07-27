@@ -104,7 +104,3 @@ model {
         destination = file( "$project.buildDir/generated-pom.xml" )
     }
 }
-
-task wrapper(type: Wrapper) {
-    gradleVersion = expectedGradleVersion
-}
