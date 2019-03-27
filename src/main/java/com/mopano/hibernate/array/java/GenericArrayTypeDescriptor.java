@@ -169,11 +169,9 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 			throw new IllegalArgumentException( "Cannot parse given string into array of strings. First and last character must be { and }" );
 		}
 		int len = string.length();
-		int applen;
 		boolean inquote = false;
 		for ( int i = 1; i < len; i ++ ) {
 			char c = string.charAt( i );
-			char quote;
 			if ( c == '"' ) {
 				if (inquote) {
 					lst.add( sb.toString() );
