@@ -58,11 +58,13 @@ public class ArrayContributionTest {
 			entity.dates = new LocalDate[]{ null, LocalDate.ofEpochDay(0), LocalDate.of(2000, 1, 1), null};
 			LOGGER.info("Persisting entity: " + entity);
 			em.persist(entity);
+			em.flush();
 			entity = new MyEntity();
 			entity.id = 2l;
 			// leave nulls because postgres is being shitty with those
 			LOGGER.info("Persisting entity: " + entity);
 			em.persist(entity);
+			em.flush();
 			em.getTransaction().commit();
 		}
 		finally {
@@ -125,7 +127,7 @@ public class ArrayContributionTest {
 			}
 			em.close();
 		}
-		
+
 	}
 
 	@Entity(name = "MyEntity")
