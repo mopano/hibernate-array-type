@@ -21,20 +21,26 @@ repositories {
 
 configurations {
 	fivethree
+	fivefour
 }
 
 dependencies {
 	compile group: 'org.hibernate', name: 'hibernate-core', version: '5.2.0.Final'
 	testCompile group: 'junit', name: 'junit', version: '4.10'
 	testRuntime group: 'org.postgresql', name: 'postgresql', version: '42.2.5'
-	fivethree group: 'org.hibernate', name: 'hibernate-core', version: '5.3.2.Final'
+	fivethree group: 'org.hibernate', name: 'hibernate-core', version: '5.3.9.Final'
+	fivefour group: 'org.hibernate', name: 'hibernate-core', version: '5.4.2.Final'
 }
 
 task testFiveThree(type:Test, dependsOn: compileJava) {
 	classpath = configurations.fivethree + configurations.testRuntime + sourceSets.test.output + sourceSets.main.output
 }
 
-test.dependsOn testFiveThree
+task testFiveFour(type: Test, dependsOn: compileJava) {
+	classpath = configurations.fivefour + configurations.testRuntime + sourceSets.test.output + sourceSets.main.output
+}
+
+test.dependsOn testFiveThree, testFiveFour
 
 jar {
 	manifest = null
