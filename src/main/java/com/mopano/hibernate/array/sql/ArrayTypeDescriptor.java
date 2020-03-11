@@ -5,14 +5,12 @@
  */
 package com.mopano.hibernate.array.sql;
 
-import java.lang.reflect.Method;
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 
-import org.hibernate.HibernateException;
 import org.hibernate.type.descriptor.ValueBinder;
 import org.hibernate.type.descriptor.ValueExtractor;
 import org.hibernate.type.descriptor.WrapperOptions;
@@ -45,7 +43,6 @@ public class ArrayTypeDescriptor implements SqlTypeDescriptor {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked") 
 	public <X> ValueBinder<X> getBinder(final JavaTypeDescriptor<X> javaTypeDescriptor) {
 		return new BasicBinder<X>( javaTypeDescriptor, this ) {
 
@@ -55,45 +52,11 @@ public class ArrayTypeDescriptor implements SqlTypeDescriptor {
 				st.setArray( index, arr );
 			}
 
-			private Method nameBinder;
-			private boolean checkedBinder;
-
 			@Override
 			protected void doBind(CallableStatement st, X value, String name, WrapperOptions options)
 					throws SQLException {
-				if (  ! checkedBinder ) {
-					Class clz = st.getClass();
-					try {
-						nameBinder = clz.getMethod( "setArray", String.class, java.sql.Array.class );
-					}
-					catch ( Exception ex ) {
-						// add logging? Did we get NoSuchMethodException or SecurityException?
-						// Doesn't matter which. We can't use it.
-					}
-					checkedBinder = true;
-				}
 				final java.sql.Array arr = javaTypeDescriptor.unwrap( value, java.sql.Array.class, options );
-				Throwable suppressedEx = null;
-				if ( nameBinder == null ) {
-					try {
-						nameBinder.invoke( st, name, arr );
-					}
-					catch ( Throwable t ) {
-						suppressedEx = t;
-					}
-				}
-				// Not that it's supposed to have setArray(String,Array) by standard.
-				// There are numerous missing methods that only have versions for positional parameter,
-				// but not named ones.
-
-				try {
-					st.setObject( name, arr, java.sql.Types.ARRAY );
-				}
-				catch (SQLException ex) {
-					RuntimeException rex =  new HibernateException( "JDBC driver does not support named parameters for setArray. Use positional.", ex );
-					rex.addSuppressed( suppressedEx );
-					throw rex; // poor rex. He did not deserve to be thrown out
-				}
+				st.setObject( name, arr, java.sql.Types.ARRAY );
 			}
 		};
 	}

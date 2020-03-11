@@ -102,15 +102,24 @@ public class ArrayTypeContributor implements TypeContributor {
 		final boolean nationalText = config.getSetting("hibernate.arrays.national.text", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean nationalClob = config.getSetting("hibernate.arrays.national.clob", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean nationalMaterializedClob = config.getSetting("hibernate.arrays.national.materialized_clob", StandardConverters.BOOLEAN, Boolean.FALSE);
+		final String uuidType = config.getSetting("hibernate.arrays.uuidtype", StandardConverters.STRING, "none").toLowerCase();
+		final boolean binaryUUIDs = "both".equals(uuidType) || "binary".equals(uuidType);
+		final boolean charUUIDs = "both".equals(uuidType) || "char".equals(uuidType);
+
+		if ( ! binaryUUIDs && ! charUUIDs && ! "none".equals(uuidType) ) {
+			log.warnf("Unknown option for hibernate.arrays.uuidtype \"%s\". Valid are: char, binary, none, both", uuidType);
+		}
 
 		if ( log.isDebugEnabled() ) {
-			log.debug("Creation of array type based on org.hibernate.type.ByteType: " + (replaceByteArrays ? "enabled" : "disabled"));
-			log.debug("Creation of array type based on org.hibernate.type.CharacterType: " + (replaceCharArrays ? "enabled" : "disabled"));
-			log.debug("Creation of array type based on org.hibernate.type.WrapperBinaryType: " + (byteWrapArrays ? "enabled" : "disabled"));
-			log.debug("Creation of array type based on org.hibernate.type.NTextType: " + (nationalText ? "enabled" : "disabled"));
-			log.debug("Creation of array type based on org.hibernate.type.NClobType: " + (nationalClob ? "enabled" : "disabled"));
-			log.debug("Creation of array type based on org.hibernate.type.StringNVarcharType: " + (nationalString ? "enabled" : "disabled"));
-			log.debug("Creation of array type based on org.hibernate.type.MaterializedNClobType: " + (nationalMaterializedClob ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.ByteType: %s", (replaceByteArrays ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.CharacterType: %s", (replaceCharArrays ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.WrapperBinaryType: %s", (byteWrapArrays ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.NTextType: %s", (nationalText ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.NClobType: %s", (nationalClob ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.StringNVarcharType: %s", (nationalString ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.MaterializedNClobType: %s", (nationalMaterializedClob ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.UUIDBinaryType: %s", (binaryUUIDs ? "enabled" : "disabled"));
+			log.debugf("Creation of array type based on org.hibernate.type.UUIDCharType: %s", (charUUIDs ? "enabled" : "disabled"));
 		}
 
 		ArrayTypes BOOLEAN = ArrayTypes.get(BooleanType.INSTANCE, serviceRegistry);
@@ -135,8 +144,6 @@ public class ArrayTypeContributor implements TypeContributor {
 		ArrayTypes LOCALE = ArrayTypes.get(LocaleType.INSTANCE, serviceRegistry);
 		ArrayTypes CURRENCY = ArrayTypes.get(CurrencyType.INSTANCE, serviceRegistry);
 		ArrayTypes TIMEZONE = ArrayTypes.get(TimeZoneType.INSTANCE, serviceRegistry);
-		ArrayTypes UUID_BINARY = ArrayTypes.get(UUIDBinaryType.INSTANCE, serviceRegistry);
-		ArrayTypes UUID_CHAR = ArrayTypes.get(UUIDCharType.INSTANCE, serviceRegistry);
 		ArrayTypes BINARY = ArrayTypes.get(BinaryType.INSTANCE, serviceRegistry);
 		ArrayTypes IMAGE = ArrayTypes.get(ImageType.INSTANCE, serviceRegistry);
 		ArrayTypes BLOB = ArrayTypes.get(BlobType.INSTANCE, serviceRegistry);
@@ -164,6 +171,8 @@ public class ArrayTypeContributor implements TypeContributor {
 		ArrayTypes NCLOB = null;
 		ArrayTypes STRING_N_VARCHAR = null;
 		ArrayTypes MATERIALIZED_NCLOB = null;
+		ArrayTypes UUID_BINARY = null;
+		ArrayTypes UUID_CHAR = null;
 
 		if ( replaceByteArrays ) {
 			BYTE = ArrayTypes.get(ByteType.INSTANCE, serviceRegistry);
@@ -185,6 +194,12 @@ public class ArrayTypeContributor implements TypeContributor {
 		}
 		if ( nationalMaterializedClob ) {
 			MATERIALIZED_NCLOB = ArrayTypes.get(MaterializedNClobType.INSTANCE, serviceRegistry );
+		}
+		if ( binaryUUIDs ) {
+			UUID_BINARY = ArrayTypes.get(UUIDBinaryType.INSTANCE, serviceRegistry);
+		}
+		if ( charUUIDs ) {
+			UUID_CHAR = ArrayTypes.get(UUIDCharType.INSTANCE, serviceRegistry);
 		}
 
 		// Do we really need all these types?
@@ -210,8 +225,6 @@ public class ArrayTypeContributor implements TypeContributor {
 		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( LOCALE.getJavaTypeDescriptor() );
 		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( CURRENCY.getJavaTypeDescriptor() );
 		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( TIMEZONE.getJavaTypeDescriptor() );
-		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( UUID_BINARY.getJavaTypeDescriptor() );
-		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( UUID_CHAR.getJavaTypeDescriptor() );
 		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( BINARY.getJavaTypeDescriptor() );
 		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( IMAGE.getJavaTypeDescriptor() );
 		JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( BLOB.getJavaTypeDescriptor() );
@@ -255,6 +268,12 @@ public class ArrayTypeContributor implements TypeContributor {
 		if ( MATERIALIZED_NCLOB != null ) {
 			JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( MATERIALIZED_NCLOB.getJavaTypeDescriptor() );
 		}
+		if ( UUID_BINARY != null ) {
+			JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( UUID_BINARY.getJavaTypeDescriptor() );
+		}
+		if ( UUID_CHAR != null ) {
+			JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( UUID_CHAR.getJavaTypeDescriptor() );
+		}
 
 		// register the Hibernate type mappings
 		typeContributions.contributeType( BOOLEAN );
@@ -279,8 +298,6 @@ public class ArrayTypeContributor implements TypeContributor {
 		typeContributions.contributeType( LOCALE );
 		typeContributions.contributeType( CURRENCY );
 		typeContributions.contributeType( TIMEZONE );
-		typeContributions.contributeType( UUID_BINARY );
-		typeContributions.contributeType( UUID_CHAR );
 		typeContributions.contributeType( BINARY );
 		typeContributions.contributeType( IMAGE );
 		typeContributions.contributeType( BLOB );
@@ -322,6 +339,12 @@ public class ArrayTypeContributor implements TypeContributor {
 		}
 		if ( MATERIALIZED_NCLOB != null ) {
 			typeContributions.contributeType( MATERIALIZED_NCLOB );
+		}
+		if ( UUID_BINARY != null ) {
+			typeContributions.contributeType( UUID_BINARY );
+		}
+		if ( UUID_CHAR != null ) {
+			typeContributions.contributeType( UUID_CHAR );
 		}
 
 	}

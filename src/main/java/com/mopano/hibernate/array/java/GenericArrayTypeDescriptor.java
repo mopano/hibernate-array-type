@@ -21,22 +21,26 @@ import org.hibernate.type.descriptor.java.ArrayMutabilityPlan;
 import org.hibernate.type.descriptor.java.JavaTypeDescriptor;
 import org.hibernate.type.descriptor.java.MutabilityPlan;
 
+import org.jboss.logging.Logger;
+
 /**
  * @author Yordan Gigov
  */
 public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 
+	private static final Logger LOGGER = Logger.getLogger(GenericArrayTypeDescriptor.class);
 	private final JavaTypeDescriptor<T> componentDescriptor;
 	private final Class<T> componentClass;
 	private final MutabilityPlan<T[]> mutaplan;
 	private final int sqlType;
-	private final Class unrapTo;
+	private final String sqlTypeName;
+	private final Class unwrapTo;
 
 	public GenericArrayTypeDescriptor(AbstractStandardBasicType<T> baseDescriptor) {
 		this( baseDescriptor, null );
 	}
 
-	@SuppressWarnings("unchecked") 
+	@SuppressWarnings("unchecked")
 	public GenericArrayTypeDescriptor(AbstractStandardBasicType<T> baseDescriptor, Class unwrapTo) {
 		super( (Class<T[]>) Array.newInstance( baseDescriptor.getJavaTypeDescriptor().getJavaTypeClass(), 0 ).getClass() );
 		this.componentDescriptor = baseDescriptor.getJavaTypeDescriptor();
@@ -48,10 +52,17 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 			this.mutaplan = ArrayMutabilityPlan.INSTANCE;
 		}
 		this.sqlType = baseDescriptor.getSqlTypeDescriptor().getSqlType();
-		this.unrapTo = unwrapTo == null ? componentClass : unwrapTo;
+		this.unwrapTo = unwrapTo == null ? componentClass : unwrapTo;
+		String typeName = baseDescriptor.getName();
+		while (typeName.endsWith("[]")) {
+			typeName = typeName.substring(0, typeName.length() - 2);
+		}
+		this.sqlTypeName = typeName;
+		LOGGER.tracef("Created GenericArrayTypeDescriptor(sqlType = %d, sqlTypeName = %s, componentClass = %s, unwrapto = %s)",
+				this.sqlType, this.sqlTypeName, this.componentClass.getName(), this.unwrapTo.getName());
 	}
 
-	@SuppressWarnings("unchecked") 
+	@SuppressWarnings("unchecked")
 	private class LocalArrayMutabilityPlan implements MutabilityPlan<T[]> {
 
 		MutabilityPlan<T> superplan;
@@ -100,9 +111,9 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 		if (one.length != another.length) {
 			return false;
 		}
-		int l = one.length;
+
+		final int l = one.length;
 		for (int i = 0; i < l; i++) {
-			
 			if ( ! componentDescriptor.areEqual( one[i], another[i] )) {
 				return false;
 			}
@@ -155,7 +166,7 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked") 
+	@SuppressWarnings("unchecked")
 	public T[] fromString(String string) {
 		if ( string == null ) {
 			return null;
@@ -229,7 +240,7 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked") 
+	@SuppressWarnings("unchecked")
 	public <X> X unwrap(T[] value, Class<X> type, WrapperOptions options) {
 		// function used for PreparedStatement binding
 
@@ -248,23 +259,24 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 			Object[] unwrapped = new Object[value.length];
 			Class cls = value.getClass().getComponentType();
 			for (int i = 0; i < value.length; i++) {
-				unwrapped[i] = unrapTo.isAssignableFrom( cls )
+				unwrapped[i] = unwrapTo.isAssignableFrom( cls )
 						? value[i]
-						: componentDescriptor.unwrap( value[i], unrapTo, options );
+						: componentDescriptor.unwrap( value[i], unwrapTo, options );
 			}
 			try {
 				conn = sess.connection();
 				String typeName;
-				try {
-					typeName = sqlDialect.getTypeName( sqlType );
-				}
-				catch (HibernateException hex) {
-					if ( sqlType == Types.SQLXML ) {
+				switch (sqlType) {
+					case Types.OTHER:
+						typeName = sqlTypeName;
+						break;
+					case Types.SQLXML:
 						typeName = "xml";
-					}
-					else {
-						throw hex;
-					}
+						break;
+					default:
+						typeName = sqlDialect.getTypeName( sqlType );
+						LOGGER.tracef("Dialect getTypeName %d returned %s", sqlType, typeName);
+						break;
 				}
 				int cutIndex = typeName.indexOf( '(' );
 				if ( cutIndex > 0 ) {
@@ -276,6 +288,7 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 			}
 			catch ( SQLException ex ) {
 				// This basically shouldn't happen unless you've lost connection to the database.
+				// Or the JDBC driver can't use the type you need.
 				throw new HibernateException( ex );
 			}
 		}
@@ -284,7 +297,7 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked") 
+	@SuppressWarnings("unchecked")
 	public <X> T[] wrap(X value, WrapperOptions options) {
 		// function used for ResultSet extraction
 
@@ -329,6 +342,7 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 		}
 		catch ( SQLException ex ) {
 			// This basically shouldn't happen unless you've lost connection to the database.
+			// Or the JDBC driver can't use the type you need.
 			throw new HibernateException( ex );
 		}
 	}
