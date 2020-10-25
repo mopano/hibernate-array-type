@@ -1,7 +1,9 @@
 /*
- * Copyright (c) Mak Ltd. Varna, Bulgaria
- * All rights reserved.
+ * Copyright (c) Mak-Si Management Ltd. Varna, Bulgaria
  *
+ * License: BSD 3-Clause license.
+ * See the LICENSE.md file in the root directory or <https://opensource.org/licenses/BSD-3-Clause>.
+ * See also <https://tldrlegal.com/license/bsd-3-clause-license-(revised)>.
  */
 package com.mopano.hibernate.array;
 
@@ -9,8 +11,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hibernate.boot.model.TypeContributions;
 import org.hibernate.boot.model.TypeContributor;
+import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.config.spi.ConfigurationService;
 import org.hibernate.engine.config.spi.StandardConverters;
+import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.type.BigDecimalType;
 import org.hibernate.type.BigIntegerType;
@@ -45,7 +49,7 @@ import org.hibernate.type.NClobType;
 import org.hibernate.type.NTextType;
 import org.hibernate.type.NumericBooleanType;
 import org.hibernate.type.OffsetDateTimeType;
-import org.hibernate.type.OffsetTimeType;
+import org.hibernate.type.PostgresUUIDType;
 import org.hibernate.type.SerializableType;
 import org.hibernate.type.ShortType;
 import org.hibernate.type.StringNVarcharType;
@@ -95,6 +99,9 @@ public class ArrayTypeContributor implements TypeContributor {
 
 		ConfigurationService config = serviceRegistry.getService(ConfigurationService.class);
 
+		JdbcServices jdbcserv = serviceRegistry.getService(JdbcServices.class);
+		Dialect dialect = jdbcserv.getDialect();
+
 		final boolean replaceByteArrays = config.getSetting("hibernate.arrays.byte", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean replaceCharArrays = config.getSetting("hibernate.arrays.char", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean byteWrapArrays = config.getSetting("hibernate.arrays.bytewrap", StandardConverters.BOOLEAN, Boolean.FALSE);
@@ -102,12 +109,17 @@ public class ArrayTypeContributor implements TypeContributor {
 		final boolean nationalText = config.getSetting("hibernate.arrays.national.text", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean nationalClob = config.getSetting("hibernate.arrays.national.clob", StandardConverters.BOOLEAN, Boolean.FALSE);
 		final boolean nationalMaterializedClob = config.getSetting("hibernate.arrays.national.materialized_clob", StandardConverters.BOOLEAN, Boolean.FALSE);
-		final String uuidType = config.getSetting("hibernate.arrays.uuidtype", StandardConverters.STRING, "none").toLowerCase();
-		final boolean binaryUUIDs = "both".equals(uuidType) || "binary".equals(uuidType);
-		final boolean charUUIDs = "both".equals(uuidType) || "char".equals(uuidType);
+		final String uuidType = config.getSetting("hibernate.arrays.uuidtype", StandardConverters.STRING, "default").toLowerCase();
+		final boolean binaryUUIDs = "both".equals(uuidType) || "all".equals(uuidType) || "binary".equals(uuidType);
+		final boolean charUUIDs = "both".equals(uuidType) || "all".equals(uuidType) || "char".equals(uuidType);
+		final boolean postgresUUIDs = "both".equals(uuidType)
+				|| "all".equals(uuidType)
+				|| "postgresql".equals(uuidType)
+				|| "default".equals(uuidType) && (dialect instanceof org.hibernate.dialect.PostgreSQL82Dialect);
+		// all modern dialects inherit the 8.2 dialect, and that's where the UUID type is added
 
-		if ( ! binaryUUIDs && ! charUUIDs && ! "none".equals(uuidType) ) {
-			log.warnf("Unknown option for hibernate.arrays.uuidtype \"%s\". Valid are: char, binary, none, both", uuidType);
+		if ( ! binaryUUIDs && ! charUUIDs && ! postgresUUIDs && ! "none".equals(uuidType) && ! "default".equals(uuidType) ) {
+			log.warnf("Unknown option for hibernate.arrays.uuidtype \"%s\". Valid are: postgresql, char, binary, none, all", uuidType);
 		}
 
 		if ( log.isDebugEnabled() ) {
@@ -140,7 +152,7 @@ public class ArrayTypeContributor implements TypeContributor {
 		ArrayTypes TIMESTAMP = ArrayTypes.get(TimestampType.INSTANCE, serviceRegistry);
 		ArrayTypes CALENDAR = ArrayTypes.get(CalendarType.INSTANCE, serviceRegistry);
 		ArrayTypes CALENDAR_DATE = ArrayTypes.get(CalendarDateType.INSTANCE, serviceRegistry);
-		ArrayTypes CLASS = ArrayTypes.get(ClassType.INSTANCE, serviceRegistry);
+		ArrayTypes CLASS = ArrayTypes.get(ClassType.INSTANCE, serviceRegistry, String.class);
 		ArrayTypes LOCALE = ArrayTypes.get(LocaleType.INSTANCE, serviceRegistry);
 		ArrayTypes CURRENCY = ArrayTypes.get(CurrencyType.INSTANCE, serviceRegistry);
 		ArrayTypes TIMEZONE = ArrayTypes.get(TimeZoneType.INSTANCE, serviceRegistry);
@@ -156,13 +168,13 @@ public class ArrayTypeContributor implements TypeContributor {
 		ArrayTypes SERIALIZABLE = ArrayTypes.get(SerializableType.INSTANCE, serviceRegistry );
 
 		ArrayTypes INSTANT = ArrayTypes.get(InstantType.INSTANCE, serviceRegistry, java.sql.Timestamp.class );
-		ArrayTypes DURATION = ArrayTypes.get(DurationType.INSTANCE, serviceRegistry, String.class );
+		ArrayTypes DURATION = ArrayTypes.get(DurationType.INSTANCE, serviceRegistry, Long.class );
 		ArrayTypes LOCAL_DATE_TIME = ArrayTypes.get(LocalDateTimeType.INSTANCE, serviceRegistry, java.sql.Timestamp.class );
 		ArrayTypes LOCAL_DATE = ArrayTypes.get(LocalDateType.INSTANCE, serviceRegistry, java.sql.Date.class );
 		ArrayTypes LOCAL_TIME = ArrayTypes.get(LocalTimeType.INSTANCE, serviceRegistry, java.sql.Time.class );
 		ArrayTypes ZONED_DATE_TIME = ArrayTypes.get(ZonedDateTimeType.INSTANCE, serviceRegistry, java.sql.Timestamp.class );
 		ArrayTypes OFFSET_DATE_TIME = ArrayTypes.get(OffsetDateTimeType.INSTANCE, serviceRegistry, java.sql.Timestamp.class );
-		ArrayTypes OFFSET_TIME = ArrayTypes.get(OffsetTimeType.INSTANCE, serviceRegistry, java.sql.Time.class );
+		ArrayTypes OFFSET_TIME = ArrayTypes.get(PgOffsetTimeType.INSTANCE, serviceRegistry, String.class );
 
 		ArrayTypes BYTE = null;
 		ArrayTypes CHARACTER = null;
@@ -173,6 +185,7 @@ public class ArrayTypeContributor implements TypeContributor {
 		ArrayTypes MATERIALIZED_NCLOB = null;
 		ArrayTypes UUID_BINARY = null;
 		ArrayTypes UUID_CHAR = null;
+		ArrayTypes POSTGRES_UUID = null;
 
 		if ( replaceByteArrays ) {
 			BYTE = ArrayTypes.get(ByteType.INSTANCE, serviceRegistry);
@@ -200,6 +213,9 @@ public class ArrayTypeContributor implements TypeContributor {
 		}
 		if ( charUUIDs ) {
 			UUID_CHAR = ArrayTypes.get(UUIDCharType.INSTANCE, serviceRegistry);
+		}
+		if ( postgresUUIDs ) {
+			POSTGRES_UUID = ArrayTypes.get(PostgresUUIDType.INSTANCE, serviceRegistry );
 		}
 
 		// Do we really need all these types?
@@ -274,6 +290,9 @@ public class ArrayTypeContributor implements TypeContributor {
 		if ( UUID_CHAR != null ) {
 			JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( UUID_CHAR.getJavaTypeDescriptor() );
 		}
+		if ( POSTGRES_UUID != null ) {
+			JavaTypeDescriptorRegistry.INSTANCE.addDescriptor( POSTGRES_UUID.getJavaTypeDescriptor() );
+		}
 
 		// register the Hibernate type mappings
 		typeContributions.contributeType( BOOLEAN );
@@ -345,6 +364,9 @@ public class ArrayTypeContributor implements TypeContributor {
 		}
 		if ( UUID_CHAR != null ) {
 			typeContributions.contributeType( UUID_CHAR );
+		}
+		if ( POSTGRES_UUID != null ) {
+			typeContributions.contributeType( POSTGRES_UUID );
 		}
 
 	}

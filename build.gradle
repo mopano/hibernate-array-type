@@ -5,13 +5,13 @@ sourceCompatibility = '1.8'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 ext {
-	expectedGradleVersion = '3.2.1'
+	expectedGradleVersion = '4.9'
 	projName = 'hibernate-array-contributor'
 	projDescription = 'A type contributor allowing Hibernate to use various types of array objects inside entities. Used for PostgreSQL.'
 }
 
 group = 'com.mopano'
-version = '1.1'
+version = '1.2'
 
 repositories {
 	mavenLocal()

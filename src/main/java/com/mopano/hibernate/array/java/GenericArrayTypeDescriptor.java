@@ -1,7 +1,9 @@
 /*
- * Copyright (c) Mak Ltd. Varna, Bulgaria
- * All rights reserved.
+ * Copyright (c) Mak-Si Management Ltd. Varna, Bulgaria
  *
+ * License: BSD 3-Clause license.
+ * See the LICENSE.md file in the root directory or <https://opensource.org/licenses/BSD-3-Clause>.
+ * See also <https://tldrlegal.com/license/bsd-3-clause-license-(revised)>.
  */
 package com.mopano.hibernate.array.java;
 
@@ -35,6 +37,7 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 	private final int sqlType;
 	private final String sqlTypeName;
 	private final Class unwrapTo;
+	private final boolean skipTypeLookup;
 
 	public GenericArrayTypeDescriptor(AbstractStandardBasicType<T> baseDescriptor) {
 		this( baseDescriptor, null );
@@ -54,10 +57,25 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 		this.sqlType = baseDescriptor.getSqlTypeDescriptor().getSqlType();
 		this.unwrapTo = unwrapTo == null ? componentClass : unwrapTo;
 		String typeName = baseDescriptor.getName();
-		while (typeName.endsWith("[]")) {
-			typeName = typeName.substring(0, typeName.length() - 2);
+		while (typeName.endsWith("[]") || typeName.endsWith(" array")) {
+			if (typeName.endsWith("[]")) {
+				typeName = typeName.substring(0, typeName.length() - 2).trim();
+			}
+			else {
+				typeName = typeName.substring(0, typeName.length() - 6).trim();
+			}
+		}
+		boolean skipTypeLookup = false;
+		if (typeName.equals("pg-uuid")) {
+			typeName = "uuid";
+			skipTypeLookup = true;
+		}
+		else if (componentClass == java.time.OffsetTime.class) {
+			typeName = "timetz";
+			skipTypeLookup = true;
 		}
 		this.sqlTypeName = typeName;
+		this.skipTypeLookup = skipTypeLookup;
 		LOGGER.tracef("Created GenericArrayTypeDescriptor(sqlType = %d, sqlTypeName = %s, componentClass = %s, unwrapto = %s)",
 				this.sqlType, this.sqlTypeName, this.componentClass.getName(), this.unwrapTo.getName());
 	}
@@ -266,23 +284,28 @@ public class GenericArrayTypeDescriptor<T> extends AbstractTypeDescriptor<T[]> {
 			try {
 				conn = sess.connection();
 				String typeName;
-				switch (sqlType) {
-					case Types.OTHER:
-						typeName = sqlTypeName;
-						break;
-					case Types.SQLXML:
-						typeName = "xml";
-						break;
-					default:
-						typeName = sqlDialect.getTypeName( sqlType );
-						LOGGER.tracef("Dialect getTypeName %d returned %s", sqlType, typeName);
-						break;
+				if ( skipTypeLookup ) {
+					typeName = sqlTypeName;
 				}
-				int cutIndex = typeName.indexOf( '(' );
-				if ( cutIndex > 0 ) {
-					// getTypeName for this case required length, etc, parameters.
-					// Cut them out and use database defaults.
-					typeName = typeName.substring( 0, cutIndex );
+				else {
+					switch (sqlType) {
+						case Types.OTHER:
+							typeName = sqlTypeName;
+							break;
+						case Types.SQLXML:
+							typeName = "xml";
+							break;
+						default:
+							typeName = sqlDialect.getTypeName( sqlType );
+							LOGGER.tracef("Dialect getTypeName %d returned %s", sqlType, typeName);
+							break;
+					}
+					int cutIndex = typeName.indexOf( '(' );
+					if ( cutIndex > 0 ) {
+						// getTypeName for this case required length, etc, parameters.
+						// Cut them out and use database defaults.
+						typeName = typeName.substring( 0, cutIndex );
+					}
 				}
 				return (X) conn.createArrayOf( typeName, unwrapped );
 			}
